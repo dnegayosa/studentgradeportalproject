@@ -1,427 +1,48 @@
-<!-- ... existing code ... -->
-      table { width: 100% !important; border-collapse: collapse !important; font-size: 11px !important; }
-      th, td { border: 1px solid #111 !important; color: black !important; }
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Student Grades Portal</title>
+  
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Arsenal:ital,wght@0,400;0,700;1,400&family=Roboto:wght@300;400;500;700&display=swap" rel="stylesheet">
+  
+  <style>
+    html { font-size: 116.6%; }
+    body { font-family: 'Roboto', Arial, sans-serif; background-color: #f4f5f9; }
+    .font-header { font-family: 'Arsenal', sans-serif; }
+    
+    @media print {
+      .no-print { display: none !important; }
+      .print-only { display: block !important; }
+      body { background: white !important; }
+      .shadow-lg, .shadow-sm, .shadow-md, .shadow-2xl { box-shadow: none !important; }
+      .border { border-color: #ddd !important; }
     }
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(10px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+    .animate-fade-in { animation: fadeIn 0.3s ease-out forwards; }
   </style>
-</head>
-<body class="bg-[#f4f5fc] min-h-screen text-slate-800 flex flex-col items-center p-2 sm:p-5">
-  <main class="w-full max-w-6xl bg-white rounded-2xl shadow-xl border border-[#ccd0ed] overflow-hidden transition-all duration-300 mb-8">
-<!-- ... existing code ... -->
-    // Rounding helper: Round Weighted Scores, Term Grades, and Final Grade to the nearest whole number
-    function roundWhole(val) {
-      if (val === undefined || val === null || isNaN(val) || val === "") return 0;
-      return Math.round(Number(val));
-    }
 
-    function loadState() {
-      // 1. PRIORITIZE ACTIVE STORAGE: Respect user added and deleted classes across reloads
-      try {
-        const saved = localStorage.getItem(STORAGE_KEY);
-        if (saved) {
-          const parsed = JSON.parse(saved);
-          if (parsed && Array.isArray(parsed.classes)) {
-            parsed.classes.forEach(c => {
-              if (c.isPublished === undefined) c.isPublished = false;
-              if (!Array.isArray(c.students)) c.students = c.students ? Object.values(c.students) : [];
-              if (!c.termCategories) {
-                c.termCategories = {
-                  prelim: JSON.parse(JSON.stringify(c.categories || [])),
-                  midterm: JSON.parse(JSON.stringify(c.categories || [])),
-                  finals: JSON.parse(JSON.stringify(c.categories || []))
-                };
-              }
-            });
-            delete parsed.previousTeacherPins;
-            delete parsed.previousAdminPins;
-            delete parsed.oldTeacherPin;
-            delete parsed.oldAdminPin;
-            return parsed;
-          }
-        }
-      } catch (e) {
-        console.warn("Error reading localStorage:", e);
-      }
-
-      // 2. Check sessionStorage fallback
-      try {
-        const sessionSaved = sessionStorage.getItem(STORAGE_KEY);
-        if (sessionSaved) {
-          const parsedSession = JSON.parse(sessionSaved);
-          if (parsedSession && Array.isArray(parsedSession.classes)) {
-            parsedSession.classes.forEach(c => {
-              if (c.isPublished === undefined) c.isPublished = false;
-              if (!Array.isArray(c.students)) c.students = c.students ? Object.values(c.students) : [];
-            });
-            delete parsedSession.previousTeacherPins;
-            delete parsedSession.previousAdminPins;
-            delete parsedSession.oldTeacherPin;
-            delete parsedSession.oldAdminPin;
-            try { localStorage.setItem(STORAGE_KEY, sessionSaved); } catch(e){}
-            return parsedSession;
-          }
-        }
-      } catch(e) {}
-
-      // 3. Multi-Key Legacy Migration: check past versions
-      const legacyKeys = [
-        "deped_grade_portal_v6",
-        "deped_grade_portal_v5",
-        "deped_grade_portal_v4",
-        "deped_grade_portal_v3",
-        "deped_grade_portal_v2",
-        "deped_grade_portal"
-      ];
-
-      for (const k of legacyKeys) {
-        try {
-          const saved = localStorage.getItem(k);
-          if (saved) {
-            const parsed = JSON.parse(saved);
-            if (parsed && Array.isArray(parsed.classes)) {
-              parsed.classes.forEach(c => {
-                if (c.isPublished === undefined) c.isPublished = false;
-                if (!Array.isArray(c.students)) c.students = c.students ? Object.values(c.students) : [];
-                if (!c.termCategories) {
-                  c.termCategories = {
-                    prelim: JSON.parse(JSON.stringify(c.categories || [])),
-                    midterm: JSON.parse(JSON.stringify(c.categories || [])),
-                    finals: JSON.parse(JSON.stringify(c.categories || []))
-                  };
-                }
-              });
-              delete parsed.previousTeacherPins;
-              delete parsed.previousAdminPins;
-              delete parsed.oldTeacherPin;
-              delete parsed.oldAdminPin;
-              try { localStorage.setItem(STORAGE_KEY, JSON.stringify(parsed)); } catch (err) {}
-              return parsed;
-            }
-          }
-        } catch (e) {
-          console.warn("Storage check exception on key:", k, e);
-        }
-      }
-
-      // 4. Initial seed fallback: ONLY if storage is completely clean/empty
-      if (typeof window !== 'undefined' && window.__PRELOADED_PORTAL_STATE__) {
-        try {
-          const preloaded = JSON.parse(JSON.stringify(window.__PRELOADED_PORTAL_STATE__));
-          if (Array.isArray(preloaded.classes)) {
-            preloaded.classes.forEach(c => {
-              if (!Array.isArray(c.students)) c.students = c.students ? Object.values(c.students) : [];
-            });
-          }
-          delete preloaded.previousTeacherPins;
-          delete preloaded.previousAdminPins;
-          delete preloaded.oldTeacherPin;
-          delete preloaded.oldAdminPin;
-          localStorage.setItem(STORAGE_KEY, JSON.stringify(preloaded));
-          sessionStorage.setItem(STORAGE_KEY, JSON.stringify(preloaded));
-          return preloaded;
-        } catch (e) {}
-      }
-
-      // 5. Default demonstration state
-      return {
-        _lastUpdated: 0,
-        teacherPin: "teacher123",
-        adminPin: "admin123",
-        pendingTeachers: [],
-        currentClassId: "cls_1",
-        classes: [
-          {
-            id: "cls_1",
-            section: "Grade 10 - Mabini",
-            subject: "Mathematics 10",
-            courseCode: "MATH101",
-            isPublished: false,
-            termWeights: { prelim: 0.30, midterm: 0.30, finals: 0.40 },
-            categories: [
-              { id: "cat_quizzes", name: "Quizzes & Assignments", weight: 0.30, items: ["Q1"] },
-              { id: "cat_attendance", name: "Attendance & Participation", weight: 0.20, items: ["CP1"] },
-              { id: "cat_exam", name: "Periodic Exam", weight: 0.50, items: ["PE"] }
-            ],
-            termCategories: {
-              prelim: [
-                { id: "cat_quizzes", name: "Quizzes & Assignments", weight: 0.30, items: ["Q1"] },
-                { id: "cat_attendance", name: "Attendance & Participation", weight: 0.20, items: ["CP1"] },
-                { id: "cat_exam", name: "Periodic Exam", weight: 0.50, items: ["PE"] }
-              ],
-              midterm: [
-                { id: "cat_quizzes", name: "Quizzes & Assignments", weight: 0.30, items: ["Q1"] },
-                { id: "cat_attendance", name: "Attendance & Participation", weight: 0.20, items: ["CP1"] },
-                { id: "cat_exam", name: "Periodic Exam", weight: 0.50, items: ["PE"] }
-              ],
-              finals: [
-                { id: "cat_quizzes", name: "Quizzes & Assignments", weight: 0.30, items: ["Q1"] },
-                { id: "cat_attendance", name: "Attendance & Participation", weight: 0.20, items: ["CP1"] },
-                { id: "cat_exam", name: "Periodic Exam", weight: 0.50, items: ["PE"] }
-              ]
-            },
-            hps: {
-              prelim: { cat_quizzes: { "Q1": 10 }, cat_attendance: { "CP1": 20 }, cat_exam: { "PE": 100 } },
-              midterm: { cat_quizzes: { "Q1": 10 }, cat_attendance: { "CP1": 20 }, cat_exam: { "PE": 100 } },
-              finals: { cat_quizzes: { "Q1": 10 }, cat_attendance: { "CP1": 20 }, cat_exam: { "PE": 100 } }
-            },
-            students: [
-              {
-                id: "2024-0101",
-                name: "DELA CRUZ, JUAN M.",
-                dropped: false,
-                terms: {
-                  prelim: {
-                    scores: { cat_quizzes: { "Q1": 9 }, cat_attendance: { "CP1": 18 }, cat_exam: { "PE": 92 } },
-                    remarks: ""
-                  },
-                  midterm: {
-                    scores: { cat_quizzes: { "Q1": 10 }, cat_attendance: { "CP1": 19 }, cat_exam: { "PE": 90 } },
-                    remarks: ""
-                  },
-                  finals: {
-                    scores: { cat_quizzes: { "Q1": 10 }, cat_attendance: { "CP1": 20 }, cat_exam: { "PE": 95 } },
-                    remarks: ""
-                  }
-                }
-              },
-              {
-                id: "2024-0102",
-                name: "SANTOS, MARIA CLARA",
-                dropped: false,
-                terms: {
-                  prelim: {
-                    scores: { cat_quizzes: { "Q1": 10 }, cat_attendance: { "CP1": 20 }, cat_exam: { "PE": 96 } },
-                    remarks: ""
-                  },
-                  midterm: {
-                    scores: { cat_quizzes: { "Q1": 10 }, cat_attendance: { "CP1": 20 }, cat_exam: { "PE": 98 } },
-                    remarks: ""
-                  },
-                  finals: {
-                    scores: { cat_quizzes: { "Q1": 10 }, cat_attendance: { "CP1": 20 }, cat_exam: { "PE": 97 } },
-                    remarks: ""
-                  }
-                }
-              },
-              {
-                id: "2024-0103",
-                name: "REYES, CARLOS P.",
-                dropped: true,
-                terms: {
-                  prelim: {
-                    scores: { cat_quizzes: { "Q1": 8 }, cat_attendance: { "CP1": 16 }, cat_exam: { "PE": 84 } },
-                    remarks: ""
-                  },
-                  midterm: {
-                    scores: { cat_quizzes: { "Q1": 0 }, cat_attendance: { "CP1": 0 }, cat_exam: { "PE": 0 } },
-                    remarks: ""
-                  },
-                  finals: {
-                    scores: { cat_quizzes: { "Q1": 0 }, cat_attendance: { "CP1": 0 }, cat_exam: { "PE": 0 } },
-                    remarks: ""
-                  }
-                }
-              }
-            ]
-          },
-          {
-            id: "cls_2",
-            section: "Grade 10 - Rizal",
-            subject: "Science & Technology",
-            courseCode: "SCI102",
-            isPublished: false,
-            termWeights: { prelim: 0.30, midterm: 0.30, finals: 0.40 },
-            categories: [
-              { id: "cat_quizzes", name: "Quizzes", weight: 0.30, items: ["Q1"] },
-              { id: "cat_attendance", name: "Lab & Attendance", weight: 0.20, items: ["CP1"] },
-              { id: "cat_exam", name: "Periodic Exam", weight: 0.50, items: ["PE"] }
-            ],
-            termCategories: {
-              prelim: [
-                { id: "cat_quizzes", name: "Quizzes", weight: 0.30, items: ["Q1"] },
-                { id: "cat_attendance", name: "Lab & Attendance", weight: 0.20, items: ["CP1"] },
-                { id: "cat_exam", name: "Periodic Exam", weight: 0.50, items: ["PE"] }
-              ],
-              midterm: [
-                { id: "cat_quizzes", name: "Quizzes", weight: 0.30, items: ["Q1"] },
-                { id: "cat_attendance", name: "Lab & Attendance", weight: 0.20, items: ["CP1"] },
-                { id: "cat_exam", name: "Periodic Exam", weight: 0.50, items: ["PE"] }
-              ],
-              finals: [
-                { id: "cat_quizzes", name: "Quizzes", weight: 0.30, items: ["Q1"] },
-                { id: "cat_attendance", name: "Lab & Attendance", weight: 0.20, items: ["CP1"] },
-                { id: "cat_exam", name: "Periodic Exam", weight: 0.50, items: ["PE"] }
-              ]
-            },
-            hps: {
-              prelim: { cat_quizzes: { "Q1": 10 }, cat_attendance: { "CP1": 20 }, cat_exam: { "PE": 100 } },
-              midterm: { cat_quizzes: { "Q1": 10 }, cat_attendance: { "CP1": 20 }, cat_exam: { "PE": 100 } },
-              finals: { cat_quizzes: { "Q1": 10 }, cat_attendance: { "CP1": 20 }, cat_exam: { "PE": 100 } }
-            },
-            students: [
-              {
-                id: "SCI-2024-A",
-                name: "SILANG, GABRIELA A.",
-                dropped: false,
-                terms: {
-                  prelim: {
-                    scores: { cat_quizzes: { "Q1": 9 }, cat_attendance: { "CP1": 19 }, cat_exam: { "PE": 94 } },
-                    remarks: ""
-                  },
-                  midterm: {
-                    scores: { cat_quizzes: { "Q1": 9 }, cat_attendance: { "CP1": 18 }, cat_exam: { "PE": 92 } },
-                    remarks: ""
-                  },
-                  finals: {
-                    scores: { cat_quizzes: { "Q1": 10 }, cat_attendance: { "CP1": 20 }, cat_exam: { "PE": 95 } },
-                    remarks: ""
-                  }
-                }
-              }
-            ]
-          }
-        ]
-      };
-    }
-
-    let state = loadState();
-
-    function saveState(immediateCloudPush = false) {
-      if (!state) return;
-      state._lastUpdated = Date.now();
-      state._userModified = true;
-      try {
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
-      } catch (e) {
-        console.warn("Could not write to LocalStorage:", e);
-      }
-      try {
-        sessionStorage.setItem(STORAGE_KEY, JSON.stringify(state));
-      } catch (e) {}
-
-      // Save to IndexedDB permanent browser storage
-      saveToIDB(state);
-
-      // Live Cloud Synchronization Trigger (Default is Live Sync)
-      if (typeof CloudSync !== 'undefined' && CloudSync.config && CloudSync.config.enabled && !CloudSync.isApplyingRemote) {
-        if (immediateCloudPush) {
-          CloudSync.pushState(true);
-        } else {
-          CloudSync.queuePush();
-        }
+  <script type="importmap">
+    {
+      "imports": {
+        "react": "https://esm.sh/react@18.3.1",
+        "react-dom/client": "https://esm.sh/react-dom@18.3.1/client",
+        "lucide-react": "https://esm.sh/lucide-react@0.378.0?external=react",
+        "firebase/app": "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js",
+        "firebase/auth": "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js",
+        "firebase/firestore": "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js"
       }
     }
-<!-- ... existing code ... -->
-      bindEvents() {
-        // Teacher Cloud Status Button Binding
-        const teacherCloudSyncBtn = document.getElementById('teacher-cloud-sync-badge');
-        if (teacherCloudSyncBtn) {
-          teacherCloudSyncBtn.addEventListener('click', () => {
-            if (!this.config.databaseUrl) {
-              showToast("Cloud database not configured. Site Administrator manages Firebase in Admin Console.");
-            } else {
-              this.testConnection();
-              showToast("Testing live database connection...");
-            }
-          });
-        }
-
-        // Secure Admin Page Bindings
-        const adminForm = document.getElementById('admin-cloud-form');
-        const adminUrlInput = document.getElementById('admin-firebase-url-input');
-        const adminChannelInput = document.getElementById('admin-firebase-channel-input');
-        const adminSecretInput = document.getElementById('admin-firebase-secret-input');
-        const adminAutoSyncToggle = document.getElementById('admin-cloud-auto-sync-toggle');
-
-        const adminTestBtn = document.getElementById('admin-test-connection-btn');
-        const adminDisconnectBtn = document.getElementById('admin-disconnect-cloud-btn');
-        const adminForcePushBtn = document.getElementById('admin-force-push-btn');
-        const adminForcePullBtn = document.getElementById('admin-force-pull-btn');
-        const adminExportPreconnectedBtn = document.getElementById('admin-export-preconnected-btn');
-        const adminClearLogsBtn = document.getElementById('admin-clear-logs-btn');
-
-        const adminChangePinBtn = document.getElementById('admin-change-pin-btn');
-        const adminResetTeacherBtn = document.getElementById('admin-reset-teacher-btn');
-        const adminBackupJsonBtn = document.getElementById('admin-backup-json-btn');
-        const adminRestoreJsonBtn = document.getElementById('admin-restore-json-btn');
-
-        if (adminResetTeacherBtn) {
-          adminResetTeacherBtn.addEventListener('click', () => {
-            showConfirmModal(
-              "Reset Teacher Password",
-              "Reset teacher password to factory default ('teacher123')? The old password will be permanently deleted.",
-              () => {
-                delete state.previousTeacherPins;
-                delete state.oldTeacherPin;
-                state.teacherPin = "teacher123";
-                saveState(true);
-                showToast("Teacher password reset to 'teacher123'. Old password deleted.");
-              }
-            );
-          });
-        }
-
-        if (adminTestBtn) {
-          adminTestBtn.addEventListener('click', () => {
-            const tempUrl = adminUrlInput ? adminUrlInput.value.trim() : "";
-            if (tempUrl) {
-              const orig = this.config.databaseUrl;
-              this.config.databaseUrl = tempUrl;
-              this.testConnection();
-              this.config.databaseUrl = orig || tempUrl;
-            } else {
-              this.testConnection();
-            }
-          });
-        }
-<!-- ... existing code ... -->
-    const adminExitModeBtn = document.getElementById('admin-exit-mode-btn');
-    if (adminExitModeBtn) {
-      adminExitModeBtn.addEventListener('click', () => {
-        if (isAdmin) adminToggleBtn.click();
-      });
-    }
-
-    // Startup & Hydration Function
-    function initializePortal() {
-      if (!state) {
-        state = loadState();
-      }
-      renderClassesGrid();
-      if (typeof CloudSync !== 'undefined') {
-        CloudSync.init();
-      }
-      restoreAuthSession();
-
-      // Asynchronous IndexedDB Hydration (Protects against localStorage wipe on refresh)
-      if (typeof loadFromIDB === 'function') {
-        loadFromIDB().then(idbState => {
-          if (idbState && Array.isArray(idbState.classes)) {
-            const idbTime = Number(idbState._lastUpdated) || 0;
-            const curTime = Number(state ? state._lastUpdated : 0) || 0;
-            if (idbTime > curTime) {
-              state = idbState;
-              try {
-                localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
-              } catch(e) {}
-              renderClassesGrid();
-              if (typeof isTeacher !== 'undefined' && isTeacher) {
-                const viewClassDetail = document.getElementById('view-class-detail');
-                if (viewClassDetail && !viewClassDetail.classList.contains('hidden')) {
-                  renderClassDetailView();
-                }
-              }
-            }
-          }
-        });
-      }
-    }
-
-    if (document.readyState === 'loading') {
-      document.addEventListener('DOMContentLoaded', initializePortal);
-    } else {
-      initializePortal();
-    }
-
   </script>
+</head>
+<body>
+  <div id="root"></div>
+  <script type="text/babel" data-type="module">// React code not found. Please copy from App.jsx.</script>
 </body>
 </html>
